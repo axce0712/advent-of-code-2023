@@ -1,3 +1,5 @@
+open System
+
 type Type =
     | FiveOfAKind
     | FourOfAKind
@@ -70,21 +72,64 @@ getType tryFindType "A23A4"
 getType tryFindType "23456"
 
 let rankingTable =
-    "AKQJT98765432" |> Seq.mapi (fun i x -> x, i) |> Map.ofSeq
+    "AKQJT98765432"
+    |> Seq.rev
+    |> Seq.mapi (fun i x -> x, i)
+    |> Map.ofSeq
 
-let compareCards rankingTable (firstCard: string) (secondCard: string) =
-    let rec imp rankingTable (firstCard: string) (secondCard: string) index =
+let compareCards
+    (rankingTable: Map<char, int>)
+    (firstCard: string)
+    (secondCard: string) =
+    let rec imp (rankingTable: Map<char, int>) (firstCard: string) (secondCard: string) index =
         let firstRank = Map.find firstCard[index] rankingTable
-        let secondRank = Map.find firstCard[index] rankingTable
+        let secondRank = Map.find secondCard[index] rankingTable
         
-        if firstRank < secondRank then
-            -1
-        else if firstRank > secondRank then
-            1
-        else
-            imp rankingTable firstRank secondCard (index + 1)
+        match compare firstRank secondRank with
+        | 0 -> imp rankingTable firstCard secondCard (index + 1)
+        | i -> i
     
     imp rankingTable firstCard secondCard 0
 
+compareCards rankingTable "KK677" "KTJJT"
+
 ["32T3K";"T55J5";"KK677";"KTJJT";"QQQJA"]
 |> List.groupBy (getType tryFindType)
+|> List.sortByDescending fst
+|> List.collect (snd >> List.sortWith (compareCards rankingTable))
+
+type CamelCard = { Hand: string; Bid: int }
+
+let parse (input: string) =
+    let [| handPart; bidPart |] = input.Split(" ", StringSplitOptions.RemoveEmptyEntries)
+
+    { Hand = handPart; Bid = int bidPart }
+    
+parse "32T3K 765"
+
+let solve cards =
+    cards
+    |> Seq.groupBy (fun card -> getType tryFindType card.Hand)
+    |> Seq.sortByDescending fst
+    |> Seq.collect
+        (fun (_, cards) ->
+            cards
+            |> Seq.sortWith (fun first second -> compareCards rankingTable first.Hand second.Hand))
+    |> Seq.mapi (fun index card -> card.Bid * (index + 1))
+    |> Seq.reduce (+)
+
+let sample = @"32T3K 765
+T55J5 684
+KK677 28
+KTJJT 220
+QQQJA 483"
+
+sample.Split("\n")
+|> Seq.map parse
+|> solve
+
+open System.IO
+
+File.ReadLines(Path.Combine(__SOURCE_DIRECTORY__, "Input.txt"))
+|> Seq.map parse
+|> solve
