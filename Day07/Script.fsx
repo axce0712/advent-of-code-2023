@@ -1,5 +1,7 @@
 open System
 
+type CamelCard = { Hand: string; Bid: int }
+
 type Type =
     | FiveOfAKind
     | FourOfAKind
@@ -51,7 +53,11 @@ let highCard map =
     else
         None
 
-let getType tryFindType (hand: string) =
+let tryFindType =
+    [ fiveOfAKind; fourOfAKind; fullHouse; threeOfAKind; twoPair; onePair; highCard ]
+    |> List.reduce (fun f g -> fun x -> match f x with | Some y -> Some y | None -> g x)
+
+let getType (hand: string) =
     let grouped =
         hand
         |> Seq.countBy id
@@ -59,23 +65,13 @@ let getType tryFindType (hand: string) =
 
     tryFindType grouped |> Option.get
 
-let tryFindType =
-    [ fiveOfAKind; fourOfAKind; fullHouse; threeOfAKind; twoPair; onePair; highCard ]
-    |> List.reduce (fun f g -> fun x -> match f x with | Some y -> Some y | None -> g x)
-
-getType tryFindType "AAAAA"
-getType tryFindType "AA8AA"
-getType tryFindType "23332"
-getType tryFindType "TTT98"
-getType tryFindType "23432"
-getType tryFindType "A23A4"
-getType tryFindType "23456"
-
-let rankingTable =
-    "AKQJT98765432"
-    |> Seq.rev
-    |> Seq.mapi (fun i x -> x, i)
-    |> Map.ofSeq
+getType "AAAAA"
+getType "AA8AA"
+getType "23332"
+getType "TTT98"
+getType "23432"
+getType "A23A4"
+getType "23456"
 
 let compareCards
     (rankingTable: Map<char, int>)
@@ -93,13 +89,6 @@ let compareCards
 
 compareCards rankingTable "KK677" "KTJJT"
 
-["32T3K";"T55J5";"KK677";"KTJJT";"QQQJA"]
-|> List.groupBy (getType tryFindType)
-|> List.sortByDescending fst
-|> List.collect (snd >> List.sortWith (compareCards rankingTable))
-
-type CamelCard = { Hand: string; Bid: int }
-
 let parse (input: string) =
     let [| handPart; bidPart |] = input.Split(" ", StringSplitOptions.RemoveEmptyEntries)
 
@@ -107,9 +96,15 @@ let parse (input: string) =
     
 parse "32T3K 765"
 
-let solve cards =
+let solve getType ranking cards =
+    let rankingTable =
+        ranking
+        |> Seq.rev
+        |> Seq.mapi (fun i x -> x, i)
+        |> Map.ofSeq
+
     cards
-    |> Seq.groupBy (fun card -> getType tryFindType card.Hand)
+    |> Seq.groupBy (fun card -> getType card.Hand)
     |> Seq.sortByDescending fst
     |> Seq.collect
         (fun (_, cards) ->
@@ -126,10 +121,31 @@ QQQJA 483"
 
 sample.Split("\n")
 |> Seq.map parse
-|> solve
+|> solve getType "AKQJT98765432"
 
 open System.IO
 
 File.ReadLines(Path.Combine(__SOURCE_DIRECTORY__, "Input.txt"))
 |> Seq.map parse
-|> solve
+|> solve getType "AKQJT98765432"
+
+let wildCard getType (hand: string) =
+    if hand.Contains('J') && hand <> "JJJJJ" then
+        printfn "%s" hand
+        hand
+        |> String.filter ((<>) 'J')
+        |> Seq.map (fun newChar -> hand.Replace('J', newChar))
+        |> Seq.sortBy getType
+        |> Seq.head
+    else
+        hand
+
+wildCard getType "QQQJA"
+
+sample.Split("\n")
+|> Seq.map parse
+|> solve (wildCard getType >> getType) "AKQT98765432J"
+
+File.ReadLines(Path.Combine(__SOURCE_DIRECTORY__, "Input.txt"))
+|> Seq.map parse
+|> solve (wildCard getType >> getType) "AKQT98765432J"
