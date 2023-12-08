@@ -42,7 +42,7 @@ let rec mergeRanges ranges =
 
         match unmerged with
         | [] -> [ merged ]
-        | r :: rs -> merged ::  imp r rs
+        | r :: rs -> merged :: imp r rs
 
     match ranges with
     | r :: rs -> imp r rs 
@@ -189,5 +189,7 @@ solve input
 
 open System.IO
 
+#time
 File.ReadAllText(Path.Combine(__SOURCE_DIRECTORY__, "Input.txt"))
 |> solve
+#time

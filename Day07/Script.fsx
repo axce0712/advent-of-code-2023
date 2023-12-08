@@ -87,8 +87,6 @@ let compareCards
     
     imp rankingTable firstCard secondCard 0
 
-compareCards rankingTable "KK677" "KTJJT"
-
 let parse (input: string) =
     let [| handPart; bidPart |] = input.Split(" ", StringSplitOptions.RemoveEmptyEntries)
 
@@ -131,7 +129,6 @@ File.ReadLines(Path.Combine(__SOURCE_DIRECTORY__, "Input.txt"))
 
 let wildCard getType (hand: string) =
     if hand.Contains('J') && hand <> "JJJJJ" then
-        printfn "%s" hand
         hand
         |> String.filter ((<>) 'J')
         |> Seq.map (fun newChar -> hand.Replace('J', newChar))
