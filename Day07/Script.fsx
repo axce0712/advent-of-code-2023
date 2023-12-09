@@ -96,10 +96,7 @@ parse "32T3K 765"
 
 let solve getType ranking cards =
     let rankingTable =
-        ranking
-        |> Seq.rev
-        |> Seq.mapi (fun i x -> x, i)
-        |> Map.ofSeq
+        ranking |> Seq.rev |> Seq.mapi (fun i x -> x, i) |> Map.ofSeq
 
     cards
     |> Seq.groupBy (fun card -> getType card.Hand)
@@ -111,6 +108,8 @@ let solve getType ranking cards =
     |> Seq.mapi (fun index card -> card.Bid * (index + 1))
     |> Seq.reduce (+)
 
+let solvePartOne cards = solve getType "AKQJT98765432" cards
+
 let sample = @"32T3K 765
 T55J5 684
 KK677 28
@@ -119,13 +118,13 @@ QQQJA 483"
 
 sample.Split("\n")
 |> Seq.map parse
-|> solve getType "AKQJT98765432"
+|> solvePartOne
 
 open System.IO
 
 File.ReadLines(Path.Combine(__SOURCE_DIRECTORY__, "Input.txt"))
 |> Seq.map parse
-|> solve getType "AKQJT98765432"
+|> solvePartOne
 
 let wildCard getType (hand: string) =
     if hand.Contains('J') && hand <> "JJJJJ" then
@@ -139,10 +138,13 @@ let wildCard getType (hand: string) =
 
 wildCard getType "QQQJA"
 
+let solvePartTwo cards =
+    solve (wildCard getType >> getType) "AKQT98765432J" cards
+
 sample.Split("\n")
 |> Seq.map parse
-|> solve (wildCard getType >> getType) "AKQT98765432J"
+|> solvePartTwo
 
 File.ReadLines(Path.Combine(__SOURCE_DIRECTORY__, "Input.txt"))
 |> Seq.map parse
-|> solve (wildCard getType >> getType) "AKQT98765432J"
+|> solvePartTwo

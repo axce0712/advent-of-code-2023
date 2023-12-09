@@ -22,16 +22,16 @@ let step network node index =
     let newIndex = nextIndex network.Instructions.Length index
     newNode, newIndex
 
+let rec countSteps network untilPredicate stepsSoFar node index =
+    let nextNode, nextIndex = step network node index
+
+    if untilPredicate nextNode then
+        stepsSoFar + 1L
+    else
+        countSteps network untilPredicate (stepsSoFar + 1L) nextNode nextIndex
+
 let solvePartOne network =
-    let rec imp network target stepsSoFar node index =
-        let nextNode, nextIndex = step network node index
-
-        if nextNode = target then
-            stepsSoFar + 1
-        else
-            imp network target (stepsSoFar + 1) nextNode nextIndex
-
-    imp network (Node "ZZZ") 0 (Node "AAA") 0
+    countSteps network ((=) (Node "ZZZ")) 0 (Node "AAA") 0
 
 let parseLookup (line: string) =
     let [| node; instructionPart |] = line.Split(" = ")
@@ -86,20 +86,12 @@ let leastCommonMultiple a b =
     a * b / (greatestCommonDivisor a b)
 
 let solvePartTwo network =
-    let rec imp network untilPredicate stepsSoFar node index =
-        let nextNode, nextIndex = step network node index
-
-        if untilPredicate nextNode then
-            stepsSoFar + 1L
-        else
-            imp network untilPredicate (stepsSoFar + 1L) nextNode nextIndex
-
     let steps =
         network.Lookup
         |> Map.filter (fun (Node node) _ -> node.EndsWith("A"))
         |> Map.map
             (fun node _ ->
-                imp network (fun (Node node) -> node.EndsWith("Z")) 0 node 0)
+                countSteps network (fun (Node node) -> node.EndsWith("Z")) 0 node 0)
 
     Map.values steps |> Seq.reduce leastCommonMultiple
 
