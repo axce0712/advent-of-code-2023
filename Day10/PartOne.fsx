@@ -1,17 +1,10 @@
 open System.IO
 
-(*
-The pipes are arranged in a two-dimensional grid of tiles:
-
-| is a vertical pipe connecting north and south.
-- is a horizontal pipe connecting east and west.
-L is a 90-degree bend connecting north and east.
-J is a 90-degree bend connecting north and west.
-7 is a 90-degree bend connecting south and west.
-F is a 90-degree bend connecting south and east.
-. is ground; there is no pipe in this tile.
-S is the starting position of the animal; there is a pipe on this tile, but your sketch doesn't show what shape the pipe has.
-*)
+type Direction =
+    | West
+    | North
+    | East
+    | South
 
 module Array2D =
     let tryFindIndex predicate (arr2D: _ [,]) =
@@ -27,135 +20,106 @@ module Array2D =
 
         imp 0 0
 
-let canConnectNorth =
+let nextDirection origin pile =
+    match origin, pile with
+    | East, '-' -> West
+    | East, 'L' -> North
+    | East, 'F' -> South
+    | South, '|' -> North
+    | South, '7' -> West
+    | South, 'F' -> East
+    | West, '-' -> East
+    | West, 'J' -> North
+    | West, '7' -> South
+    | North, '|' -> South
+    | North, 'J' -> West
+    | North, 'L' -> East
+    | _ -> failwithf "Invalid sequence of origin '%A' and pile '%c'" origin pile
+
+let inverseDirection =
     function
-    | '|'
-    | '7'
-    | 'F' -> true
-    | _ -> false
+    | West -> East
+    | North -> South
+    | East -> West
+    | South -> North
 
-let canConnectWest =
-    function
-    | '-'
-    | 'L'
-    | 'F' -> true
-    | _ -> false
+let move direction (x, y) =
+    match direction with
+    | West -> x - 1, y
+    | North -> x, y - 1
+    | East -> x + 1, y
+    | South -> x, y + 1
 
-let canConnectSouth =
-    function
-    | '|'
-    | 'J'
-    | 'L' -> true
-    | _ -> false
-
-let canConnectEast =
-    function
-    | '-'
-    | 'J'
-    | '7' -> true
-    | _ -> false
-
-let tryMoveWest (x, y) = if x > 0 then Some(x - 1, y) else None
-
-let tryMoveNorth (x, y) = if y > 0 then Some(x, y - 1) else None
-
-let getPipe (x, y) (area: char [,]) = area[y, x]
-
-let tryMoveEast (x, y) (area: char [,]) =
-    if x < Array2D.length2 area - 1 then
-        Some(x + 1, y)
-    else
+let tryGetElement (area: char [,]) (x, y) =
+    if x < 0
+       || y < 0
+       || y >= Array2D.length1 area
+       || x >= Array2D.length2 area then
         None
-
-let tryMoveSouth (x, y) (area: char [,]) =
-    if y < Array2D.length1 area - 1 then
-        Some(x, y + 1)
     else
-        None
+        Array2D.get area y x |> Some
 
-let noneIfVisited =
-    function
-    | 'V' -> None
-    | chr -> Some chr
+let getElement (area: char [,]) (x, y) = Array2D.get area y x
 
-let tryWest (x, y) (area: char [,]) =
-    tryMoveWest (x, y)
-    |> Option.bind (fun pos ->
-        getPipe pos area
-        |> noneIfVisited
-        |> Option.bind (fun pipe ->
-            if canConnectWest pipe then
-                Some pos
-            else
-                None))
+let step (area: char [,]) (origin, pos) =
+    let newDirection =
+        getElement area pos |> nextDirection origin
 
-let tryNorth (x, y) (area: char [,]) =
-    tryMoveNorth (x, y)
-    |> Option.bind (fun pos ->
-        getPipe pos area
-        |> noneIfVisited
-        |> Option.bind (fun pipe ->
-            if canConnectNorth pipe then
-                Some pos
-            else
-                None))
+    inverseDirection newDirection, move newDirection pos
 
-let tryEast (x, y) (area: char [,]) =
-    tryMoveEast (x, y) area
-    |> Option.bind (fun pos ->
-        getPipe pos area
-        |> noneIfVisited
-        |> Option.bind (fun pipe ->
-            if canConnectEast pipe then
-                Some pos
-            else
-                None))
+let steps (area: char [,]) directions = directions |> List.map (step area)
 
-let trySouth (x, y) (area: char [,]) =
-    tryMoveSouth (x, y) area
-    |> Option.bind (fun pos ->
-        getPipe pos area
-        |> noneIfVisited
-        |> Option.bind (fun pipe ->
-            if canConnectSouth pipe then
-                Some pos
-            else
-                None))
+let choosePipeWest area (x, y) =
+    match tryGetElement area (x - 1, y) with
+    | Some '-'
+    | Some 'L'
+    | Some 'F' -> Some(East, (x - 1, y))
+    | _ -> None
 
-let nextDirections =
-    function
-    | '|' -> [ tryNorth; trySouth ]
-    | '-' -> [ tryWest; tryEast ]
-    | 'L' -> [ tryNorth; tryEast ]
-    | 'J' -> [ tryWest; tryNorth ]
-    | '7' -> [ tryWest; trySouth ]
-    | 'F' -> [ tryEast; trySouth ]
-    | 'S' -> [ tryWest; tryNorth; tryEast; trySouth ]
-    | chr -> failwithf "Unexpected value %c" chr
+let choosePipeNorth area (x, y) =
+    match tryGetElement area (x - 1, y) with
+    | Some '|'
+    | Some '7'
+    | Some 'L' -> Some(South, (x, y - 1))
+    | _ -> None
 
-let step (area: char [,]) (x, y) =
-    getPipe (x, y) area
-    |> nextDirections
-    |> List.choose (fun f -> f (x, y) area)
+let choosePipeEast area (x, y) =
+    match tryGetElement area (x + 1, y) with
+    | Some '-'
+    | Some 'J'
+    | Some '7' -> Some(West, (x + 1, y))
+    | _ -> None
 
-let steps (area: char [,]) positions =
-    positions
-    |> List.map (step area)
-    |> List.reduce (@)
+let choosePipeSouth area (x, y) =
+    match tryGetElement area (x, y + 1) with
+    | Some '|'
+    | Some 'J'
+    | Some 'L' -> Some(North, (x, y + 1))
+    | _ -> None
 
-let markVisited (area: char [,]) (x, y) = area[y, x] <- 'V'
+let getDirections area (x, y) =
+    [ choosePipeWest area
+      choosePipeNorth area
+      choosePipeEast area
+      choosePipeSouth area ]
+    |> List.choose ((|>) (x, y))
 
 let solvePartOne (area: char [,]) =
     let rec imp area positions value =
         match steps area positions with
-        | [] -> value
-        | newPositions ->
-            positions |> List.iter (markVisited area)
-            imp area newPositions (value + 1)
+        | newPositions when
+            newPositions
+            |> Seq.map snd
+            |> Seq.pairwise
+            |> Seq.forall (fun (p1, p2) -> p1 = p2)
+            ->
+            value
+        | newPositions -> imp area newPositions (value + 1)
 
     let area = Array2D.copy area
     let sx, sy = Array2D.tryFindIndex ((=) 'S') area |> Option.get
-    imp area [ sx, sy ] 0
+    let startPositions = getDirections area (sx, sy)
+    imp area startPositions 0
 
 let sample =
     @"..F7.
