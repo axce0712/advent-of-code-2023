@@ -1,61 +1,104 @@
 open System
-let skipWhile predicate take list =
-    let rec imp predicate left list =
-        if left = 0 then
-            Some list
-        else
-            match list with
-            | x :: xs when predicate x -> imp predicate (left - 1) xs
-            | _ -> None
+open System.IO
 
-    imp predicate take list
+let rec collectDamagedOrUnknown count springs =
+    if count = 0 then
+        Some springs
+    else
+        match springs with
+        | '#' :: others -> collectDamagedOrUnknown (count - 1) others
+        | '?' :: others -> collectDamagedOrUnknown (count - 1) others
+        | _ -> None
 
-skipWhile (function | '#' | '?' -> true | _ -> false) 3 (Seq.toList "?##..#")
+let rec containsDamaged count springs =
+    if count = 0 then
+        false
+    else
+        match springs with
+        | [] -> false
+        | '#' :: _ -> true
+        | '?' :: left -> containsDamaged (count - 1) left
+        | _ -> invalidOp "Should not happen"
 
-let rec collectCandidates damagedSprings springs =
-    // printfn "%i, %s" damagedSprings (springs |> List.toArray |> String)
+let collectCandidates damagedSprings springs =
     let rec imp acc damagedSprings springs =
+        // printfn " %i, %s" damagedSprings (springs |> List.toArray |> String)
+
         match springs with
         | [] -> acc
         | '.' :: left -> imp acc damagedSprings left
         | '#' :: _ ->
-            match springs |> skipWhile (function | '#' | '?' -> true | _ -> false) damagedSprings with
+            match collectDamagedOrUnknown damagedSprings springs with
             | Some [] -> [] :: acc
             | Some ('#' :: _) -> acc
-            | Some (_ :: xs) -> xs :: acc
-            | None -> []
+            | Some ('?' :: xs) -> xs :: acc
+            | Some ('.' :: xs) -> xs :: acc
+            | None -> acc
         | '?' :: left ->
-            match springs |> skipWhile (function | '#' | '?' -> true | _ -> false) damagedSprings with
+            match collectDamagedOrUnknown damagedSprings springs with
             | Some [] -> [] :: acc
-            | Some ('#' :: _) -> acc
-            | Some (_ :: xs) -> imp (xs :: acc) damagedSprings left
-            | None -> []
+            | Some ('#' :: _) -> imp acc damagedSprings left
+            | Some ('?' :: xs) -> imp (xs :: acc) damagedSprings left
+            | Some ('.' :: xs) when containsDamaged damagedSprings springs -> xs :: acc
+            | Some ('.' :: xs) -> imp (xs :: acc) damagedSprings xs
+            | None -> imp acc damagedSprings left
 
-    imp [] damagedSprings springs
-
-let step damagedSpringCounts springs =
-    match damagedSpringCounts with
-    | [] -> [], []
-    | d :: ds -> ds, collectCandidates d springs
+    imp [] damagedSprings springs |> List.rev
 
 let arrangements damagedSpringCounts springs =
-    let rec imp damagedSpringCounts springs =
-        printfn "%A, %s" damagedSpringCounts (springs |> List.toArray |> String)
-        match damagedSpringCounts, springs with
-        | [], [] -> 1
-        | [], _ when springs |> List.forall ((<>) '#') -> 1
-        | [], _ -> 0
-        | _, [] -> 0
-        | d :: ds, _ ->
-            let next = collectCandidates d springs
-            
-            next
-            |> List.map (imp ds)
-            |> List.length
+    let rec imp (acc: char list list) damagedSpringCounts =
+        printfn "%A, %A" damagedSpringCounts (acc |> List.map (List.toArray >> String))
 
-    imp damagedSpringCounts springs
+        match damagedSpringCounts with
+        | [] -> 0
+        | d :: [] ->
+            acc
+            |> List.sumBy (
+                collectCandidates d
+                >> List.filter (List.contains '#' >> not)
+                >> List.length)
+        | d :: ds ->
+            let newAcc = acc |> List.collect (collectCandidates d)
+            imp newAcc ds
 
-arrangements [3;1] (Seq.toList ".##?...??")
+    imp [ springs ] damagedSpringCounts
 
-step [3;1] (Seq.toList ".##?...#")
-|> fun (ds, springs) -> springs |> List.map (step ds)
+let parse (line: string) =
+    let [| springs; damagedSpringsPart |] = line.Split(" ")
+
+    let damagedSprings =
+        damagedSpringsPart.Split(",")
+        |> Seq.map int
+        |> Seq.toList
+
+    Seq.toList springs, damagedSprings
+
+let solvePartOne lines =
+    lines
+    |> Seq.sumBy (fun (springs, damagedSprings) -> arrangements damagedSprings springs)
+
+#time
+"???.###????.###????.###????.###????.### 1,1,3,1,1,3,1,1,3,1,1,3,1,1,3"
+|> parse
+|> fun (springs, damagedSprings) -> arrangements damagedSprings springs
+#time
+
+let sample =
+    @"???.### 1,1,3
+.??..??...?##. 1,1,3
+?#?#?#?#?#?#?#? 1,3,1,6
+????.#...#... 4,1,1
+????.######..#####. 1,6,5
+?###???????? 3,2,1"
+
+sample.Split("\n")
+|> Seq.map parse
+|> solvePartOne
+
+#time
+
+File.ReadLines(Path.Combine(__SOURCE_DIRECTORY__, "Input.txt"))
+|> Seq.map parse
+|> solvePartOne
+
+#time
