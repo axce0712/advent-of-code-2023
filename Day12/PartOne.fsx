@@ -1,72 +1,80 @@
-let (|D|O|U|) =
-    function
-    | '.' -> O
-    | '#' -> D
-    | '?' -> U
-    | chr -> failwithf "Invalid character '%c'" chr
+open System.IO
 
-let rec nextContiguousGroup springs =
-    match springs with
-    | O :: left -> nextContiguousGroup left
-    | _ -> springs
+let arrangements groups map =
+    let rec loopDot map groups index =
+        if index + List.sum groups + List.length groups - 1 > String.length map then
+            0
+        else if index >= String.length map then
+            1
+        else
+            match groups with
+            | [] -> if map.IndexOf('#', index) < 0 then 1 else 0
+            | length :: left ->
+                let count =
+                    match map[index] with
+                    | '.' -> loopDot map groups (index + 1)
+                    | '#' -> loopHash map left (length - 1) (index + 1)
+                    | '?' ->
+                        loopHash map left (length - 1) (index + 1)
+                        + loopDot map groups (index + 1)
+                    | chr -> failwithf $"Unexpected character '%c{chr}' at index %i{index} of map '%s{map}'"
 
-let countIfNotAnyDamaged left =
-    if List.contains '#' left |> not then 1 else 0
+                count
 
-let rec arrangements damagedSprings springs =
-    let rec imp d ds springs =
-        match d, springs, ds with
-        | 0, _, _ -> invalidOp "Should never happen"
-        | _, [], _ -> 0
-        | _, O :: _, _ -> 0
-        | 1, [ D ], [] -> 1
-        | 1, [ D ], _ -> 0
-        | 1, D :: D :: _, _ -> 0
-        | 1, D :: O :: left, [] -> countIfNotAnyDamaged left
-        | 1, D :: U :: left, [] -> countIfNotAnyDamaged left
-        | 1, D :: O :: left, _ -> arrangements ds left
-        | 1, D :: U :: left, _ -> arrangements ds left
-        | 1, [ U ], [] -> 1
-        | 1, [ U ], _ -> 0
-        | 1, U :: D :: _, _ -> 0
-        | 1, U :: O :: left, [] -> countIfNotAnyDamaged left
-        | 1, U :: U :: left, [] -> countIfNotAnyDamaged left
-        | 1, U :: O :: left, _ -> arrangements ds left
-        | 1, U :: U :: left, _ -> arrangements ds left
-        | _, D :: left, _ -> imp (d - 1) ds left
-        | _, U :: left, _ -> imp (d - 1) ds left
+    and loopHash map groups length index =
+        let endIndex = index + length
+        if endIndex > String.length map then
+            0
+        else
+            let nextDot =
+                match map.IndexOf('.', index) with
+                | -1 -> map.Length
+                | n -> n
 
-    match damagedSprings, springs with
-    | [], _ -> 0
-    | _, [] -> 0
-    | _, O :: left -> arrangements damagedSprings (nextContiguousGroup left)
-    | d :: ds, D :: _ -> imp d ds springs
-    | d :: ds, U :: left -> imp d ds springs + arrangements damagedSprings left
+            if nextDot >= endIndex then
+                if endIndex = String.length map then
+                    if List.isEmpty groups then 1 else 0
+                else if map[endIndex] = '#' then
+                    0
+                else
+                    loopDot map groups (endIndex + 1)
+            else
+                0
+
+    loopDot map groups 0
 
 let parse (line: string) =
-    let [| springs; damagedSpringsPart |] = line.Split(" ")
-    let damagedSprings =
-        damagedSpringsPart.Split(",") |> Seq.map int |> Seq.toList
+    let map, groupsPart =
+        match line.Split(" ") with
+        | [| springs; damagedSpringsPart |] -> springs, damagedSpringsPart
+        | _ -> failwith $"Unexpected parts with length of %i{line.Length}"
 
-    Seq.toList springs, damagedSprings
+    let groups = groupsPart.Split(",") |> Seq.map int |> Seq.toList
+
+    map, groups
 
 let solvePartOne lines =
     lines
-    |> Seq.sumBy (fun (springs, damagedSprings) -> arrangements damagedSprings springs)
+    |> Seq.sumBy (fun (map, groups) -> arrangements groups map)
 
-let sample = @"???.### 1,1,3
+arrangements [3;2;1] "?###????????"
+
+let sample =
+    @"???.### 1,1,3
 .??..??...?##. 1,1,3
 ?#?#?#?#?#?#?#? 1,3,1,6
 ????.#...#... 4,1,1
 ????.######..#####. 1,6,5
 ?###???????? 3,2,1"
 
-sample.Split("\n") |> Seq.map parse |> solvePartOne
-
-open System.IO
+sample.Split("\n")
+|> Seq.map parse
+|> solvePartOne
 
 #time
+
 File.ReadLines(Path.Combine(__SOURCE_DIRECTORY__, "Input.txt"))
 |> Seq.map parse
 |> solvePartOne
+
 #time

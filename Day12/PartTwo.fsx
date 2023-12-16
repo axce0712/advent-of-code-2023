@@ -1,87 +1,68 @@
-open System
+open System.Collections.Generic
 open System.IO
 
-let rec collectDamagedOrUnknown count springs =
-    if count = 0 then
-        Some springs
-    else
-        match springs with
-        | '#' :: others -> collectDamagedOrUnknown (count - 1) others
-        | '?' :: others -> collectDamagedOrUnknown (count - 1) others
-        | _ -> None
+let arrangements groups map =
+    let rec loopDot map groups index (cache: Dictionary<int * int list, int64>) =
+        match cache.TryGetValue((index, groups)) with
+        | true, count -> count
+        | false, _ ->
+            if index + List.sum groups + List.length groups - 1 > String.length map then
+                0L
+            else if index >= String.length map then
+                1L
+            else
+                match groups with
+                | [] -> if map.IndexOf('#', index) < 0 then 1 else 0
+                | length :: left ->
+                    let count =
+                        match map[index] with
+                        | '.' -> loopDot map groups (index + 1) cache
+                        | '#' -> loopHash map left (length - 1) (index + 1) cache
+                        | '?' ->
+                            loopHash map left (length - 1) (index + 1) cache
+                            + loopDot map groups (index + 1) cache
+                        | chr -> failwithf $"Unexpected character '%c{chr}' at index %i{index} of map '%s{map}'"
 
-let rec containsDamaged count springs =
-    if count = 0 then
-        false
-    else
-        match springs with
-        | [] -> false
-        | '#' :: _ -> true
-        | '?' :: left -> containsDamaged (count - 1) left
-        | _ -> invalidOp "Should not happen"
+                    cache.Add((index, groups), count)
+                    count
 
-let collectCandidates damagedSprings springs =
-    let rec imp acc damagedSprings springs =
-        // printfn " %i, %s" damagedSprings (springs |> List.toArray |> String)
+    and loopHash map groups length index cache =
+        let endIndex = index + length
+        if endIndex > String.length map then
+            0L
+        else
+            let nextDot =
+                match map.IndexOf('.', index) with
+                | -1 -> map.Length
+                | n -> n
 
-        match springs with
-        | [] -> acc
-        | '.' :: left -> imp acc damagedSprings left
-        | '#' :: _ ->
-            match collectDamagedOrUnknown damagedSprings springs with
-            | Some [] -> [] :: acc
-            | Some ('#' :: _) -> acc
-            | Some ('?' :: xs) -> xs :: acc
-            | Some ('.' :: xs) -> xs :: acc
-            | None -> acc
-        | '?' :: left ->
-            match collectDamagedOrUnknown damagedSprings springs with
-            | Some [] -> [] :: acc
-            | Some ('#' :: _) -> imp acc damagedSprings left
-            | Some ('?' :: xs) -> imp (xs :: acc) damagedSprings left
-            | Some ('.' :: xs) when containsDamaged damagedSprings springs -> xs :: acc
-            | Some ('.' :: xs) -> imp (xs :: acc) damagedSprings xs
-            | None -> imp acc damagedSprings left
+            if nextDot >= endIndex then
+                if endIndex = String.length map then
+                    if List.isEmpty groups then 1 else 0
+                else if map[endIndex] = '#' then
+                    0L
+                else
+                    loopDot map groups (endIndex + 1) cache
+            else
+                0L
 
-    imp [] damagedSprings springs |> List.rev
-
-let arrangements damagedSpringCounts springs =
-    let rec imp (acc: char list list) damagedSpringCounts =
-        printfn "%A, %A" damagedSpringCounts (acc |> List.map (List.toArray >> String))
-
-        match damagedSpringCounts with
-        | [] -> 0
-        | d :: [] ->
-            acc
-            |> List.sumBy (
-                collectCandidates d
-                >> List.filter (List.contains '#' >> not)
-                >> List.length)
-        | d :: ds ->
-            let newAcc = acc |> List.collect (collectCandidates d)
-            imp newAcc ds
-
-    imp [ springs ] damagedSpringCounts
+    loopDot map groups 0 (Dictionary<int * int list, int64>())
 
 let parse (line: string) =
-    let [| springs; damagedSpringsPart |] = line.Split(" ")
+    let map, groupsPart =
+        match line.Split(" ") with
+        | [| springs; damagedSpringsPart |] -> springs, damagedSpringsPart
+        | _ -> failwith $"Unexpected parts with length of %i{line.Length}"
 
-    let damagedSprings =
-        damagedSpringsPart.Split(",")
-        |> Seq.map int
-        |> Seq.toList
+    let groups = groupsPart.Split(",") |> Seq.map int |> Seq.toList
 
-    Seq.toList springs, damagedSprings
+    map, groups
 
-let solvePartOne lines =
+let solvePartTwo lines =
     lines
-    |> Seq.sumBy (fun (springs, damagedSprings) -> arrangements damagedSprings springs)
+    |> Seq.sumBy (fun (map, groups) -> arrangements (groups @ groups @ groups @ groups @ groups) (map + "?" + map + "?" + map + "?" + map + "?" + map))
 
-#time
-"???.###????.###????.###????.###????.### 1,1,3,1,1,3,1,1,3,1,1,3,1,1,3"
-|> parse
-|> fun (springs, damagedSprings) -> arrangements damagedSprings springs
-#time
+arrangements [3;2;1] "?###????????"
 
 let sample =
     @"???.### 1,1,3
@@ -93,12 +74,12 @@ let sample =
 
 sample.Split("\n")
 |> Seq.map parse
-|> solvePartOne
+|> solvePartTwo
 
 #time
 
 File.ReadLines(Path.Combine(__SOURCE_DIRECTORY__, "Input.txt"))
 |> Seq.map parse
-|> solvePartOne
+|> solvePartTwo
 
 #time
