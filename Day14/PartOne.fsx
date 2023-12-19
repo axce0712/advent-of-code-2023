@@ -1,28 +1,19 @@
-let calculateLoad n l = n * l - (l - (l + 1) % 2) * (l / 2)
-
 let totalLoad platform =
-    let rec imp platform loadSoFar countSoFar y x =
-        if x < 0 then
-            loadSoFar
-        else if y < 0 then
-            let newLoad =
-                loadSoFar
-                + calculateLoad (Array2D.length1 platform - y - 1) countSoFar
+    let mutable score = 0
+    let lengthY = Array2D.length1 platform
 
-            imp platform newLoad 0 (Array2D.length1 platform - 1) (x - 1)
-        else
+    for x in 0 .. Array2D.length2 platform - 1 do
+        let mutable offsetY = 0
+
+        for y in 0 .. lengthY - 1 do
             match Array2D.get platform y x with
-            | '#' ->
-                let newLoad =
-                    loadSoFar
-                    + calculateLoad (Array2D.length1 platform - y - 1) countSoFar
+            | '#' -> offsetY <- y + 1
+            | 'O' ->
+                score <- score + (lengthY - offsetY)
+                offsetY <- offsetY + 1
+            | _ -> ()
 
-                imp platform newLoad 0 (y - 1) x
-            | 'O' -> imp platform loadSoFar (countSoFar + 1) (y - 1) x
-            | '.' -> imp platform loadSoFar countSoFar (y - 1) x
-            | chr -> failwithf $"Unknown character '%c{chr}'"
-
-    imp platform 0 0 (Array2D.length1 platform - 1) (Array2D.length2 platform - 1)
+    score
 
 let sample =
     @"O....#....
